@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily Diary Online</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+  <div class="bg-moon"></div>
+  <div id="stars-container"></div>
+
+  <div id="lobby">
+    <div class="lobby-wrapper">
+      
+      <div class="lobby-box">
+        <h2>🌙 Daily Diary Lobby</h2>
+        <div class="discord-warning">
+          🎧 เกมนี้ต้องเปิดไมค์เล่นพร้อมกันผ่าน Discord 💬
+        </div>
+
+        <input id="playerName" placeholder="ใส่ชื่อผู้เล่น">
+        <input id="roomId" placeholder="เลขห้อง">
+
+        <select id="maxPlayers">
+          <option value="2">2 คน</option>
+          <option value="3">3 คน</option>
+          <option value="4" selected>4 คน</option>
+        </select>
+
+        <div style="margin-top: 2vh;">
+          <button onclick="createRoom()">สร้างห้อง</button>
+          <button onclick="joinRoom()">เข้าห้อง</button>
+        </div>
+
+        <div class="lobby-credits">
+          Created by <strong>Watsamon Srithanan</strong><br>
+          🧸 สนใจติดต่อซื้อบอร์ดเกมฉบับกล่องได้ที่ <br>
+          <strong>FB Page: <a href="https://www.facebook.com/profile.php?id=61560855286936" target="_blank">Jaokha Create House</a></strong>
+          <div style="font-size: 10px; color: #7e6f9a; margin-top: 0.5vh;">Learn & Play & Share Games for language learning</div>
+        </div>
+      </div>
+
+      <div class="rule-box">
+        <h3>✨ วิธีการเล่นเกม (How to Play)</h3>
+        <hr style="border: none; border-top: 1px dashed #3d2f5c; margin-bottom: 1.5vh;">
+        <ul>
+          <li><strong>เตรียมตัวก่อนเริ่ม:</strong> รวมตัวคอลคุยเสียงใน Discord ให้พร้อมเพื่อใช้สื่อสารและฟังประโยค</li>
+          <li><strong>กติกาใน 1 เทิร์น:</strong> เมื่อถึงตาของคุณ คุณมีสิทธิ์เลือกทำได้เพียง <u>**1 แอคชัน**</u> เท่านั้น ระหว่าง:
+            <ul>
+              <li>🪙 <strong>สุ่มเหรียญคำช่วย:</strong> สุ่มรับคำช่วยเพิ่ม 1 ตัว (ระบบจะข้ามตาให้อัตโนมัติ)</li>
+              <li>✨ <strong>แต่งประโยค:</strong> จ่ายเหรียญคำช่วยบนมือตามจำนวนคอสต์ของการ์ดเหตุการณ์เพื่อเลือกการ์ดใบนั้น</li>
+            </ul>
+          </li>
+          <li><strong>🎤 การแต่งประโยคและการโหวต:</strong> หลังเลือกการ์ด ให้ผู้เล่นเปิดไมค์พูดแต่งประโยคภาษาญี่ปุ่นตามรูปภาพและคำช่วยที่เลือกให้เพื่อนใน Discord ฟัง</li>
+          <li><strong>👍 ระบบยอมรับร่วมกัน:</strong> หลังจากพูดจบ <span style="color: #b30059; font-weight: bold;">ผู้เล่นคนอื่น ๆ ทุกคนในห้อง</span> ต้องช่วยกันฟัง และกดปุ่ม <strong>"ยอมรับประโยค"</strong> บนหน้าจอ หากทุกคนเห็นว่าถูกต้อง ผู้เล่นในเทิร์นจึงจะได้รับคะแนนสะสม!</li>
+          <li><strong>🏆 การชัยชนะ:</strong> ใครสามารถสะสมแต้มความทรงจำครบ <strong>13 คะแนน</strong> ได้ก่อน จะเป็นผู้ชนะเกมไดอารี่นี้ทันที!</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="game-container" style="display: none;">
+
+    <div class="corner-player left-bottom">
+      <div class="player-name">-</div>
+      <div class="player-particles" id="player-bottom"></div>
+    </div>
+
+    <div class="corner-player left-top">
+      <div class="player-name">-</div>
+      <div class="player-particles" id="player-top"></div>
+    </div>
+
+    <div class="corner-player right-top">
+      <div class="player-name">-</div>
+      <div class="player-particles" id="player-right"></div>
+    </div>
+
+    <div class="corner-player right-bottom">
+      <div class="player-name">-</div>
+      <div class="player-particles" id="player-left"></div>
+    </div>
+
+    <div id="main-game">
+      <div id="top-bar">
+        <div id="title-area">📖 Daily Diary Online</div>
+        <div id="score-area"></div>
+      </div>
+
+      <div id="turn-area">💤 กำลังรอเริ่มเกม...</div>
+      <div id="host-control-area" style="text-align: center; margin-bottom: 0.5vh;"></div>
+
+      <div id="action-area">
+        <button id="btn-sentence" onclick="startSentenceMode()">✨ แต่งประโยค</button>
+        <button id="btn-draw" onclick="drawParticle()">🪙 สุ่มเหรียญคำช่วย</button>
+        <button id="btn-leave" class="leave-btn" onclick="leaveRoom()">🚪 ออกจากห้อง</button>
+      </div>
+
+      <div id="selected-card-area"></div>
+      
+      <div id="board"></div>
+
+      <div id="credit">
+        Created by Watsamon Srithanan | FB Page: <a href="https://www.facebook.com/profile.php?id=61560855286936" target="_blank" style="color: rgba(255,255,255,0.6); text-decoration: underline;">Jaokha Create House</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
