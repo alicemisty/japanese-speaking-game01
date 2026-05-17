@@ -37,20 +37,20 @@ generateNightSky()
 
 // --- BASE CARDS DATA ---
 const baseMorning = [
-  { cost: 1, points: 1, image: "https://github.com/user-attachments/assets/01155d03-fcc7-4301-ada5-7fb897b301b8" },
-  { cost: 1, points: 2, image: "https://github.com/user-attachments/assets/b6dac043-358d-4052-b9e8-56219a2d41c0" },
-  { cost: 2, points: 2, image: "https://github.com/user-attachments/assets/41ded218-68f3-48f8-acc9-473c3dc498ea" },
-  { cost: 2, points: 1, image: "https://github.com/user-attachments/assets/369ba676-34b7-41fa-95b1-0aa33dd4b1c2" }
+  { image: "https://github.com/user-attachments/assets/01155d03-fcc7-4301-ada5-7fb897b301b8" },
+  { image: "https://github.com/user-attachments/assets/b6dac043-358d-4052-b9e8-56219a2d41c0" },
+  { image: "https://github.com/user-attachments/assets/41ded218-68f3-48f8-acc9-473c3dc498ea" },
+  { image: "https://github.com/user-attachments/assets/369ba676-34b7-41fa-95b1-0aa33dd4b1c2" }
 ]
 const baseDay = [
-  { cost: 2, points: 2, image: "https://github.com/user-attachments/assets/75d9ffa7-4485-4fb8-a890-5b87d523988f" },
-  { cost: 3, points: 3, image: "https://github.com/user-attachments/assets/5028bb42-f75a-4adc-9b8e-67013bc21e91" },
-  { cost: 2, points: 3, image: "https://github.com/user-attachments/assets/2a9666c2-c45b-401b-a42c-2f60bc18732d" }
+  { image: "https://github.com/user-attachments/assets/75d9ffa7-4485-4fb8-a890-5b87d523988f" },
+  { image: "https://github.com/user-attachments/assets/5028bb42-f75a-4adc-9b8e-67013bc21e91" },
+  { image: "https://github.com/user-attachments/assets/2a9666c2-c45b-401b-a42c-2f60bc18732d" }
 ]
 const baseEvening = [
-  { cost: 3, points: 3, image: "https://github.com/user-attachments/assets/e30e6ac9-1c50-4392-ae08-965957c423a8" },
-  { cost: 4, points: 4, image: "https://github.com/user-attachments/assets/c661b4ae-ae4f-4f2a-90ee-ea284532938e" },
-  { cost: 3, points: 4, image: "https://github.com/user-attachments/assets/78d2ab9c-c9fe-44a8-a308-f1862a0df149" }
+  { image: "https://github.com/user-attachments/assets/e30e6ac9-1c50-4392-ae08-965957c423a8" },
+  { image: "https://github.com/user-attachments/assets/c661b4ae-ae4f-4f2a-90ee-ea284532938e" },
+  { image: "https://github.com/user-attachments/assets/78d2ab9c-c9fe-44a8-a308-f1862a0df149" }
 ]
 
 // --- LOBBY SYSTEM ---
@@ -60,9 +60,10 @@ function createRoom(){
   const max = document.getElementById("maxPlayers").value
   if(!name || !room) return alert("ใส่ชื่อ + ห้อง")
 
-  const morningDeck = createCardVariants(baseMorning, 15, 2)
-  const dayDeck = createCardVariants(baseDay, 10, 3)
-  const eveningDeck = createCardVariants(baseEvening, 5, 4)
+  // สุ่มจัดสำรับตามเกณฑ์ขั้นต่ำ-ขั้นสูงของคอสต์และคะแนนแต่ละประเภท
+  const morningDeck = createCardVariants(baseMorning, 15, 1, 2, 2) // minCost:1, maxCost:2, maxPoint:2
+  const dayDeck = createCardVariants(baseDay, 10, 1, 3, 3)         // minCost:1, maxCost:3, maxPoint:3
+  const eveningDeck = createCardVariants(baseEvening, 5, 3, 4, 4)   // minCost:3, maxCost:4, maxPoint:4
 
   db.ref("rooms/" + room).set({
     maxPlayers: Number(max),
@@ -157,7 +158,6 @@ function initGameSync() {
     }
 
     const playersObj = data.players || {}
-    // จัดเรียงลำดับให้อ้างอิงตามคีย์ของห้อง (p1, p2, p3, p4) เสมอ ป้องกัน Index สลับมั่วเวลาแสดงผล
     players = ["p1", "p2", "p3", "p4"]
       .filter(key => playersObj[key])
       .map(key => ({
@@ -203,6 +203,25 @@ function drawParticle() {
     currentPlayer: nextPlayerIndex,
     [`players/${player.key}/particles`]: currentParticles
   })
+}
+
+// --- CARD VARIATING SYSTEM (ปรับช่วงคอสต์และแต้มตามกฎชุดใหม่) ---
+function createCardVariants(baseCards, totalAmount, minCost, maxCost, maxPoint) {
+  const result = []
+  while (result.length < totalAmount) {
+    const base = baseCards[Math.floor(Math.random() * baseCards.length)]
+    
+    // สุ่มคอสต์ให้อยู่ในช่วง minCost ถึง maxCost พอดี
+    let randomCost = minCost + Math.floor(Math.random() * (maxCost - minCost + 1))
+    
+    // สุ่มคะแนนโดยให้อิงตามราคาคอสต์ (+-1) แต่ต้องไม่เกินเพดานคะแนนสูงสุดของการ์ดประเภทนั้นๆ
+    let randomPoints = randomCost + (Math.random() > 0.5 ? 1 : 0)
+    if (randomPoints > maxPoint) randomPoints = maxPoint
+    if (randomPoints < 1) randomPoints = 1
+
+    result.push({ image: base.image, cost: randomCost, points: randomPoints })
+  }
+  return result
 }
 
 function startSentenceMode() {
@@ -408,7 +427,6 @@ function renderHostControl() {
 function renderParticles() {
   const activeReview = reviewState && reviewState.active
   
-  // ค้นหา Object ผู้เล่นรายคีย์แบบระบุตัวตน เพื่อดึงข้อมูลมา Render ประจำมุมจอให้ถูกต้อง
   const p1Data = players.find(p => p.key === "p1")
   const p2Data = players.find(p => p.key === "p2")
   const p3Data = players.find(p => p.key === "p3")
@@ -438,20 +456,6 @@ function renderPlayerArea(areaId, particleList, clickable, targetPlayer, playerK
     const isSelected = clickable && selectedParticles.includes(index)
     return `<div class="particle ${isSelected ? "selected-particle" : ""}" ${clickable ? `onclick="toggleParticle(${index})"` : ""}>${particle}</div>`
   }).join("")
-}
-
-function createCardVariants(baseCards, totalAmount, maxPoint) {
-  const result = []
-  while (result.length < totalAmount) {
-    const base = baseCards[Math.floor(Math.random() * baseCards.length)]
-    let randomCost = base.cost + Math.floor(Math.random() * 2)
-    if (randomCost < 1) randomCost = 1
-    if (randomCost > 4) randomCost = 4
-    let randomPoints = randomCost + Math.floor(Math.random() * 2)
-    if (randomPoints > maxPoint) randomPoints = maxPoint
-    result.push({ image: base.image, cost: randomCost, points: randomPoints })
-  }
-  return result
 }
 
 function renderBoard() {
@@ -490,9 +494,9 @@ function renderRow(title, className, deck, openCards) {
 
 function resetRoomToLobby() {
   if (!roomId) return
-  const morningDeck = createCardVariants(baseMorning, 15, 2)
-  const dayDeck = createCardVariants(baseDay, 10, 3)
-  const eveningDeck = createCardVariants(baseEvening, 5, 4)
+  const morningDeck = createCardVariants(baseMorning, 15, 1, 2, 2)
+  const dayDeck = createCardVariants(baseDay, 10, 1, 3, 3)
+  const eveningDeck = createCardVariants(baseEvening, 5, 3, 4, 4)
   const updates = {}
   updates[`rooms/${roomId}/gameStarted`] = false
   updates[`rooms/${roomId}/currentPlayer`] = 0
