@@ -126,7 +126,7 @@ let sentenceMode = false, selectedCardData = null, selectedParticles = []
 let reviewState = { active: false, speakerKey: "", cardData: null, approvedPlayers: [], usedParticles: [] }
 let serverBoard = { morning: { deck: [], open: [] }, day: { deck: [], open: [] }, evening: { deck: [], open: [] } }
 
-function getCurrentPlayer() { return players[currentPlayer] || { name: "รอ...", score: 0, particles: [] }; }
+function getCurrentPlayer() { return players[currentPlayer] || { key: "", name: "รอ...", score: 0, particles: [] }; }
 function isMyTurn() { return gameStarted && getCurrentPlayer().name === playerName; }
 function getMyPlayerKey() { const f = players.find(p => p.name === playerName); return f ? f.key : null; }
 function amIHost() { const f = players.find(p => p.name === playerName); return f && f.key === "p1"; }
@@ -157,9 +157,15 @@ function initGameSync() {
     }
 
     const playersObj = data.players || {}
-    players = Object.keys(playersObj).map(key => ({
-      key, name: playersObj[key].name, score: playersObj[key].score || 0, particles: playersObj[key].particles || []
-    }))
+    // จัดเรียงลำดับให้อ้างอิงตามคีย์ของห้อง (p1, p2, p3, p4) เสมอ ป้องกัน Index สลับมั่วเวลาแสดงผล
+    players = ["p1", "p2", "p3", "p4"]
+      .filter(key => playersObj[key])
+      .map(key => ({
+        key,
+        name: playersObj[key].name,
+        score: playersObj[key].score || 0,
+        particles: playersObj[key].particles || []
+      }))
 
     if (gameStarted && players.length < 2) {
       alert("ผู้เล่นคนอื่นออกไปหมดแล้ว เกมจบลง")
@@ -188,7 +194,7 @@ function drawParticle() {
   const rand = particles[Math.floor(Math.random() * particles.length)]
   currentParticles.push(rand)
 
-  alert(`🪙 คุณสุ่มได้คำช่วย "${rand}" \n(จบเทิร์นของคุณเรียบร้อย เปลี่ยนตาผู้เล่นคนถัดไป)`)
+  alert(`🪙 คุณสุ่มได้คำช่วย "${rand}" \n(ระบบจะเพิ่มเหรียญให้และจบเทิร์นส่งต่อผู้เล่นคนถัดไป)`)
   
   let nextPlayerIndex = currentPlayer + 1
   if (nextPlayerIndex >= players.length) nextPlayerIndex = 0
@@ -238,7 +244,7 @@ function toggleParticle(index) {
   renderSelectedCard()
 }
 
-// --- SPEAK & ONLINE REVIEW VOTING SYSTEM (ระบบประเมินผลโหวต ยอมรับ / ไม่ยอมรับ) ---
+// --- SPEAK & ONLINE REVIEW VOTING SYSTEM ---
 function startSpeaking() {
   if (!isMyTurn()) return
   if (selectedParticles.length !== selectedCardData.card.cost) return alert("เลือกเหรียญคอสต์คำช่วยไม่ครบจำนวน")
@@ -246,11 +252,8 @@ function startSpeaking() {
   alert("🎤 เริ่มแต่งประโยคพูดออกเสียงใน Discord ได้เลย! \nผู้เล่นคนอื่นจะทำหน้าที่ตรวจสอบประโยคของคุณ");
 
   const player = getCurrentPlayer()
-  
-  // เก็บสำเนาเหรียญที่ถูกตัดออก เพื่อเอาไว้คืนเผื่อกรณีโดนโหวตคว่ำปัดตกประโยค
   const savedUsedParticles = selectedParticles.map(index => player.particles[index])
 
-  // ตัดเหรียญออกจากมือนักพูดชั่วคราว
   selectedParticles.sort((a, b) => b - a).forEach(index => { player.particles.splice(index, 1) })
 
   db.ref(`rooms/${roomId}`).update({
@@ -259,7 +262,7 @@ function startSpeaking() {
       speakerKey: player.key,
       cardData: selectedCardData,
       approvedPlayers: [player.key], 
-      usedParticles: savedUsedParticles // เก็บข้อมูลลงถังสำรองบนคลาวด์
+      usedParticles: savedUsedParticles
     },
     board: serverBoard,
     [`players/${player.key}/particles`]: player.particles || []
@@ -277,7 +280,6 @@ function approveSentence() {
 
   reviewState.approvedPlayers.push(myKey)
 
-  // ถ้าทุกคนช่วยกันกดยอมรับจนครบสมบูรณ์แบบ
   if (reviewState.approvedPlayers.length >= players.length) {
     const speaker = players.find(p => p.key === reviewState.speakerKey)
     const targetCard = reviewState.cardData.card
@@ -313,7 +315,6 @@ function approveSentence() {
   }
 }
 
-// ✨ [เพิ่มฟังก์ชัน] ระบบไม่ยอมรับประโยค ปัดตก คืนเหรียญ และให้เริ่มสิทธิ์เทิร์นเดิมเลือกแอคชันใหม่
 function rejectSentence() {
   if (!reviewState.active) return
   const speaker = players.find(p => p.key === reviewState.speakerKey)
@@ -321,13 +322,11 @@ function rejectSentence() {
 
   alert(`❌ ประโยคถูกปฏิเสธ! ระบบทำการคืนเหรียญคำช่วยให้ผู้เล่น [${speaker.name}] และให้โอกาสเลือกแอคชันใหม่อีกครั้งในเทิร์นเดิม`)
 
-  // คืนเหรียญคำช่วยชุดเดิมกลับเข้ามือผู้เล่น
   const restoredParticles = speaker.particles || []
   if (reviewState.usedParticles) {
     reviewState.usedParticles.forEach(p => restoredParticles.push(p))
   }
 
-  // ปิดระบบ Review State และคืนสิทธิ์ให้คนเดิมทำแอคชันใหม่ (ไม่ต้องบวก currentPlayer)
   db.ref(`rooms/${roomId}`).update({
     reviewState: { active: false, speakerKey: "", approvedPlayers: [], usedParticles: [] },
     [`players/${speaker.key}/particles`]: restoredParticles
@@ -407,23 +406,27 @@ function renderHostControl() {
 }
 
 function renderParticles() {
-  if (players.length === 0) return
   const activeReview = reviewState && reviewState.active
   
-  renderPlayerArea("player-bottom", players[0]?.particles || [], currentPlayer === 0 && isMyTurn() && !activeReview, 0)
-  renderPlayerArea("player-top", players[1]?.particles || [], currentPlayer === 1 && isMyTurn() && !activeReview, 1)
-  renderPlayerArea("player-left", players[2]?.particles || [], currentPlayer === 2 && isMyTurn() && !activeReview, 2)
-  renderPlayerArea("player-right", players[3]?.particles || [], currentPlayer === 3 && isMyTurn() && !activeReview, 3)
+  // ค้นหา Object ผู้เล่นรายคีย์แบบระบุตัวตน เพื่อดึงข้อมูลมา Render ประจำมุมจอให้ถูกต้อง
+  const p1Data = players.find(p => p.key === "p1")
+  const p2Data = players.find(p => p.key === "p2")
+  const p3Data = players.find(p => p.key === "p3")
+  const p4Data = players.find(p => p.key === "p4")
+
+  renderPlayerArea("player-bottom", p1Data?.particles || [], p1Data && getCurrentPlayer().key === "p1" && isMyTurn() && !activeReview, p1Data, "p1")
+  renderPlayerArea("player-top", p2Data?.particles || [], p2Data && getCurrentPlayer().key === "p2" && isMyTurn() && !activeReview, p2Data, "p2")
+  renderPlayerArea("player-left", p3Data?.particles || [], p3Data && getCurrentPlayer().key === "p3" && isMyTurn() && !activeReview, p3Data, "p3")
+  renderPlayerArea("player-right", p4Data?.particles || [], p4Data && getCurrentPlayer().key === "p4" && isMyTurn() && !activeReview, p4Data, "p4")
 }
 
-function renderPlayerArea(areaId, particleList, clickable, playerIndex) {
+function renderPlayerArea(areaId, particleList, clickable, targetPlayer, playerKey) {
   const area = document.getElementById(areaId)
   if (!area) return
-  const targetPlayer = players[playerIndex]
   const nameDiv = area.previousElementSibling
 
   if (nameDiv && targetPlayer) {
-    nameDiv.innerText = `${targetPlayer.name} (⭐${targetPlayer.score}) ${gameStarted && currentPlayer === playerIndex ? "🎤" : ""}`
+    nameDiv.innerText = `${targetPlayer.name} (⭐${targetPlayer.score}) ${gameStarted && getCurrentPlayer().key === playerKey ? "🎤" : ""}`
   }
   if (!targetPlayer) {
     area.innerHTML = "<div style='font-size:11px; color:#666;'>ว่างเปล่า</div>"
